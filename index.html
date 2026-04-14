@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Mirror &amp; Moon — A quiet reflection</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Source+Sans+3:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div class="phone" role="application" aria-label="Self-reflection companion">
+      <!-- 1. Home -->
+      <section id="screen-home" class="screen screen--active" data-screen="home">
+        <header class="screen-header screen-header--hero">
+          <p class="eyebrow">Not a prediction — a mirror</p>
+          <h1 class="title">Mirror &amp; Moon</h1>
+          <p class="lede">A gentle space to notice what you feel, want, and carry — guided by imagery, not fate.</p>
+        </header>
+        <div class="screen-body screen-body--center">
+          <button type="button" class="btn btn--primary" id="btn-begin">Begin a Reading</button>
+        </div>
+      </section>
+
+      <!-- 2. Question -->
+      <section id="screen-question" class="screen" data-screen="question" hidden>
+        <header class="screen-header">
+          <p class="eyebrow">Step 1</p>
+          <h2 class="title title--section">What’s on your heart?</h2>
+          <p class="subtitle">Name a situation, feeling, or tension — in your own words. Nothing here is judged.</p>
+        </header>
+        <div class="screen-body">
+          <label class="field-label" for="input-question">Your focus (optional but helpful)</label>
+          <textarea id="input-question" class="input input--textarea" rows="4" placeholder="e.g. A choice I keep postponing…"></textarea>
+          <button type="button" class="btn btn--primary" id="btn-question-continue">Continue</button>
+        </div>
+      </section>
+
+      <!-- 3. Draw -->
+      <section id="screen-draw" class="screen" data-screen="draw" hidden>
+        <header class="screen-header">
+          <p class="eyebrow">Step 2</p>
+          <h2 class="title title--section">Draw a card</h2>
+          <p class="subtitle">The card is a prompt — a mirror for your inner landscape, not a forecast.</p>
+        </header>
+        <div class="screen-body screen-body--center">
+          <div class="card-back" id="card-back" aria-hidden="true">
+            <span class="card-back__glyph">☽</span>
+          </div>
+          <button type="button" class="btn btn--primary" id="btn-draw">Draw a Card</button>
+        </div>
+      </section>
+
+      <!-- 4. Reflection chat -->
+      <section id="screen-chat" class="screen screen--chat" data-screen="chat" hidden>
+        <header class="screen-header screen-header--compact">
+          <p class="eyebrow" id="chat-card-keyword"></p>
+          <h2 class="title title--chat" id="chat-card-title"></h2>
+        </header>
+
+        <div class="chat-layout">
+          <div class="chat-messages-wrap">
+            <div id="chat-messages" class="chat-messages" role="log" aria-live="polite" aria-relevant="additions"></div>
+          </div>
+
+          <div class="chat-composer" id="chat-composer">
+            <div class="chat-composer__inner">
+              <label class="visually-hidden" for="input-chat">Your reply</label>
+              <input type="text" id="input-chat" class="input input--chat" placeholder="Write your reflection…" autocomplete="off" />
+              <button type="button" class="btn btn--send" id="btn-send">Send</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="chat-footer-actions" id="chat-summary-cta" hidden>
+          <button type="button" class="btn btn--secondary btn--full" id="btn-see-summary">See Summary</button>
+        </div>
+      </section>
+
+      <!-- 5. Summary -->
+      <section id="screen-summary" class="screen" data-screen="summary" hidden>
+        <header class="screen-header">
+          <p class="eyebrow">Closing</p>
+          <h2 class="title title--section">Your reflection</h2>
+          <p class="subtitle">Words you offered, held without judgment.</p>
+        </header>
+        <div class="screen-body">
+          <article class="summary-card" id="summary-content"></article>
+          <button type="button" class="btn btn--primary" id="btn-restart">Begin Again</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
