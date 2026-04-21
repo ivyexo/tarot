@@ -363,6 +363,9 @@ body {
 }
 
 .summary-card {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   background: rgba(244, 239, 228, 0.06);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
@@ -397,6 +400,35 @@ body {
 .summary-card strong {
   color: var(--cream);
   font-weight: 600;
+}
+
+#screen-summary .screen-body {
+  min-height: 0;
+}
+
+#screen-summary .btn--primary {
+  flex-shrink: 0;
+}
+
+.summary-card::-webkit-scrollbar {
+  width: 8px;
+}
+
+.summary-card::-webkit-scrollbar-track {
+  background: rgba(244, 239, 228, 0.04);
+  border-radius: 999px;
+}
+
+.summary-card::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(201, 169, 98, 0.45), rgba(61, 53, 82, 0.8));
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.summary-card {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(201, 169, 98, 0.5) rgba(244, 239, 228, 0.06);
 }
 
 .visually-hidden {

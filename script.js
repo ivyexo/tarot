@@ -67,6 +67,9 @@ let userQuestion = "";
 let userReplies = [];
 let promptRound = 0;
 let chatComplete = false;
+const MODEL_PROXY_URL = "https://itp-ima-replicate-proxy.web.app/api/create_n_get";
+const MODEL_NAME = "anthropic/claude-4.5-sonnet";
+const MODEL_AUTH_TOKEN = "";
 
 const screens = {
   home: document.getElementById("screen-home"),
@@ -122,6 +125,43 @@ function addMessage(role, text) {
   renderChat();
 }
 
+function buildModelOptions() {
+  const headers = { "Content-Type": "application/json" };
+  if (MODEL_AUTH_TOKEN) {
+    headers.Authorization = `Bearer ${MODEL_AUTH_TOKEN}`;
+  }
+  return { method: "POST", headers };
+}
+
+function limitWords(text, maxWords) {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  return words.slice(0, maxWords).join(" ");
+}
+
+async function requestModelReply(prompt, maxTokens = 1024, temperature = 0.6) {
+  const options = buildModelOptions();
+  options.body = JSON.stringify({
+    model: MODEL_NAME,
+    input: {
+      prompt,
+      max_tokens: maxTokens,
+      temperature,
+    },
+  });
+
+  const response = await fetch(MODEL_PROXY_URL, options);
+  if (!response.ok) {
+    throw new Error(`Model request failed with ${response.status}`);
+  }
+
+  const data = await response.json();
+  if (!data || !data.output || !Array.isArray(data.output)) {
+    throw new Error("Model response was empty");
+  }
+
+  return data.output.join("").trim();
+}
+
 function generateReflectiveFollowUp(card, replies) {
   const snippet = (replies[2] || replies[1] || replies[0] || "").trim();
   const short = snippet.length > 120 ? `${snippet.slice(0, 117)}…` : snippet;
@@ -132,6 +172,36 @@ function generateReflectiveFollowUp(card, replies) {
       : `Whatever surfaced here belongs to you; you can revisit it whenever it feels right.`) +
     ` There’s no rush to resolve it all at once.`
   );
+}
+
+async function generateAiFollowUp(card, replies, questionContext) {
+  const safeReplies = replies.map((r) => limitWords(r, 60));
+  const safeQuestion = limitWords(questionContext || "", 60);
+  const fallback = generateReflectiveFollowUp(card, replies);
+
+  const prompt = [
+    "You are a warm, emotionally intelligent self-reflection guide.",
+    "Do not predict the future, do not use fortune-telling language, and do not give diagnosis.",
+    "Write one short follow-up response (2-3 sentences) after a tarot-inspired reflection session.",
+    "The card is a mirror, not a prediction.",
+    `Card: ${card.name}`,
+    `Card keyword: ${card.keyword}`,
+    safeQuestion ? `User starting focus: ${safeQuestion}` : "",
+    `User reflection 1: ${safeReplies[0] || ""}`,
+    `User reflection 2: ${safeReplies[1] || ""}`,
+    `User reflection 3: ${safeReplies[2] || ""}`,
+    "Tone: calm, compassionate, grounded, open-ended.",
+    "End with one gentle invitation for continued reflection.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  try {
+    const aiText = await requestModelReply(prompt, 1024, 0.7);
+    return aiText || fallback;
+  } catch (err) {
+    return fallback;
+  }
 }
 
 function detectSummaryTone(text) {
@@ -186,6 +256,40 @@ function generateSummary(userReplies, card) {
   return `<p><strong>${mirrorLine}</strong></p><p>${toneParagraphs[tone]}</p><p>${closing}</p>`;
 }
 
+async function generateAiSummary(userReplies, card, questionContext) {
+  const safeReplies = userReplies.map((r) => limitWords(r, 70));
+  const safeQuestion = limitWords(questionContext || "", 60);
+  const fallback = generateSummary(userReplies, card);
+
+  const prompt = [
+    "You are writing a concise reflection summary for a tarot-inspired journaling app.",
+    "Important: the card acts as a mirror, not a prediction.",
+    "Never predict outcomes, never say fate/destiny, and avoid absolute advice.",
+    "Write exactly 3 short paragraphs in HTML using <p> tags only.",
+    "Paragraph 1: Mention the card as mirror, not prediction.",
+    "Paragraph 2: Name emotional pattern with warmth.",
+    "Paragraph 3: Offer one grounded, gentle next step.",
+    `Card: ${card.name}`,
+    `Keyword: ${card.keyword}`,
+    safeQuestion ? `Initial focus: ${safeQuestion}` : "",
+    `Reply one: ${safeReplies[0] || ""}`,
+    `Reply two: ${safeReplies[1] || ""}`,
+    `Reply three: ${safeReplies[2] || ""}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  try {
+    const aiHtml = await requestModelReply(prompt, 1024, 0.65);
+    if (aiHtml.includes("<p>")) {
+      return aiHtml;
+    }
+    return `<p>${escapeHtml(aiHtml)}</p>`;
+  } catch (err) {
+    return fallback;
+  }
+}
+
 function startReflectionSession(card) {
   selectedCard = card;
   chatMessages = [];
@@ -208,7 +312,7 @@ function startReflectionSession(card) {
   addMessage("app", card.prompts[0]);
 }
 
-function handleSendMessage() {
+async function handleSendMessage() {
   if (!selectedCard || chatComplete) return;
   const text = (els.inputChat && els.inputChat.value.trim()) || "";
   if (!text) return;
@@ -227,7 +331,7 @@ function handleSendMessage() {
     return;
   }
   if (promptRound >= 3) {
-    const followUp = generateReflectiveFollowUp(selectedCard, userReplies);
+    const followUp = await generateAiFollowUp(selectedCard, userReplies, userQuestion);
     addMessage("app", followUp);
     chatComplete = true;
     if (els.inputChat) els.inputChat.disabled = true;
@@ -236,9 +340,9 @@ function handleSendMessage() {
   }
 }
 
-function goToSummary() {
+async function goToSummary() {
   if (!selectedCard) return;
-  const html = generateSummary(userReplies, selectedCard);
+  const html = await generateAiSummary(userReplies, selectedCard, userQuestion);
   if (els.summaryContent) {
     if (userQuestion.trim()) {
       els.summaryContent.innerHTML =
