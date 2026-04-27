@@ -46,8 +46,15 @@
           <p class="subtitle">The card is a prompt — a mirror for your inner landscape, not a forecast.</p>
         </header>
         <div class="screen-body screen-body--center">
-          <div class="card-back" id="card-back" aria-hidden="true">
-            <span class="card-back__glyph">☽</span>
+          <div class="draw-stage" id="draw-stage" aria-hidden="true">
+            <span class="draw-ghost draw-ghost--left"></span>
+            <span class="draw-ghost draw-ghost--right"></span>
+            <div class="card-back" id="card-back">
+              <span class="card-back__glyph">☽</span>
+              <div class="card-face" id="card-face" hidden>
+                <img id="draw-card-image" class="card-face__image" alt="Drawn tarot card illustration" />
+              </div>
+            </div>
           </div>
           <button type="button" class="btn btn--primary" id="btn-draw">Draw a Card</button>
         </div>
@@ -58,6 +65,7 @@
         <header class="screen-header screen-header--compact">
           <p class="eyebrow" id="chat-card-keyword"></p>
           <h2 class="title title--chat" id="chat-card-title"></h2>
+          <button type="button" class="chip-btn" id="btn-card-meaning">Card meaning</button>
         </header>
 
         <div class="chat-layout">
@@ -76,6 +84,15 @@
 
         <div class="chat-footer-actions" id="chat-summary-cta" hidden>
           <button type="button" class="btn btn--secondary btn--full" id="btn-see-summary">See Summary</button>
+        </div>
+
+        <div class="modal" id="card-meaning-modal" hidden>
+          <div class="modal__backdrop" id="card-meaning-backdrop"></div>
+          <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="card-meaning-title">
+            <h3 class="modal__title" id="card-meaning-title">Card meaning</h3>
+            <p class="modal__text" id="card-meaning-text"></p>
+            <button type="button" class="btn btn--secondary btn--full" id="btn-close-card-meaning">Close</button>
+          </div>
         </div>
       </section>
 
