@@ -60,6 +60,14 @@ const tarotCards = [
   },
 ];
 
+const cardLenses = {
+  "The Moon": "uncertainty, intuition, hidden feelings, patience with not-knowing",
+  "The Lovers": "choice, values alignment, honesty, relational clarity",
+  "The Hermit": "space, inner guidance, solitude, reflection",
+  Death: "change, release, transition, renewal",
+  "The Star": "hope, healing, renewal, guidance, trust",
+};
+
 /** @type {{ role: 'app' | 'user', text: string }[]} */
 let chatMessages = [];
 let selectedCard = null;
@@ -67,6 +75,9 @@ let userQuestion = "";
 let userReplies = [];
 let promptRound = 0;
 let summaryUnlocked = false;
+let lastCheeringLine = "";
+let lastShortReply = "";
+let lastPostThirdQuestion = "";
 const MODEL_PROXY_URL =
   "https://itp-ima-replicate-proxy.web.app/api/create_n_get";
 const MODEL_NAME = "anthropic/claude-4.5-sonnet";
@@ -207,10 +218,231 @@ function needsCheeringReaction(text) {
 function withCheeringReaction(userText, responseText) {
   if (!needsCheeringReaction(userText)) return responseText;
   const clean = (responseText || "").trim();
-  const cheeringLine =
-    "You are doing better than you think, and I am with you in this.";
+  const cheeringLines = [
+    "You are doing better than you think, and I am with you in this.",
+    "You are not alone in this, and it is okay to take it one breath at a time.",
+    "I hear you, and your feelings make sense right now.",
+    "You are showing real courage by sharing this so honestly.",
+    "It is okay to move gently; you do not have to solve everything at once.",
+  ];
+  const options = cheeringLines.filter((line) => line !== lastCheeringLine);
+  const pool = options.length ? options : cheeringLines;
+  const cheeringLine = pool[Math.floor(Math.random() * pool.length)];
+  lastCheeringLine = cheeringLine;
   if (!clean) return cheeringLine;
   return `${cheeringLine} ${clean}`;
+}
+
+function normalizeReply(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/[^\w\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function chooseNonRepeatingOption(options, previousText) {
+  const prevNorm = normalizeReply(previousText || "");
+  const filtered = options.filter((opt) => normalizeReply(opt) !== prevNorm);
+  const pool = filtered.length ? filtered : options;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function getCardLens(card) {
+  if (!card) return "self-trust and gentle reflection";
+  return cardLenses[card.name] || `${card.keyword.toLowerCase()} and reflection`;
+}
+
+function isSuggestionRequest(text) {
+  const input = (text || "").toLowerCase();
+  return /\b(i dont know|i don't know|not sure|no idea|idk|give me suggestions|any suggestions|suggestions please|what should i do|help me decide)\b/.test(
+    input,
+  );
+}
+
+function buildCardBasedSuggestions(card) {
+  const suggestionsByCard = {
+    "The Moon": [
+      "Name two possible feelings under this, even if you are unsure.",
+      "Write one fear story and one kinder alternative story.",
+      "Take a 3-minute pause and notice what your body is signaling.",
+    ],
+    "The Lovers": [
+      "List your top two values, then test each option against them.",
+      "Finish this sentence: 'The choice that feels most like me is...'.",
+      "Pick one small action today that supports your truest option.",
+    ],
+    "The Hermit": [
+      "Take 10 quiet minutes away from screens and note what comes up.",
+      "Write one boundary that would protect your energy this week.",
+      "Choose one calming ritual for tonight, then keep it simple.",
+    ],
+    Death: [
+      "Name one thing you are ready to release this week.",
+      "Write a brief goodbye line to what no longer fits.",
+      "Choose one replacement habit that supports the next chapter.",
+    ],
+    "The Star": [
+      "Name one sign of hope or healing from the last few days.",
+      "Pick one gentle action that rebuilds trust in yourself tonight.",
+      "Reach out for one supportive connection or grounding resource.",
+    ],
+  };
+  return suggestionsByCard[card?.name] || [
+    "Name one feeling, one need, and one next step in three lines.",
+    "Choose one small action you can do in the next hour.",
+    "Write a kind sentence to yourself and read it slowly once.",
+  ];
+}
+
+function extractTrailingQuestion(text) {
+  const match = String(text || "")
+    .trim()
+    .match(/([^?.!]*\?)\s*$/);
+  return match ? match[1].trim().toLowerCase() : "";
+}
+
+function stripTrailingQuestion(text) {
+  return String(text || "")
+    .replace(/\s*[^?.!]*\?\s*$/, "")
+    .trim();
+}
+
+function buildAdaptiveShortFallback(card, userText) {
+  const input = (userText || "").trim();
+  const lower = input.toLowerCase();
+  const wordCount = input.split(/\s+/).filter(Boolean).length;
+  const askedQuestion = input.includes("?");
+  const asksSuggestions = isSuggestionRequest(input);
+  const soundsWorried =
+    /\b(worried|worry|anxious|anxiety|afraid|scared|nervous|overwhelmed|stress|stressed|panic|uncertain|confused|lost|sad|upset)\b/.test(
+      lower,
+    );
+  const lens = getCardLens(card);
+
+  if (asksSuggestions) {
+    const suggestions = buildCardBasedSuggestions(card);
+    const starter = chooseNonRepeatingOption(suggestions, lastShortReply);
+    return `${card.name} points to ${lens}. Try this: ${starter}`;
+  }
+
+  if (soundsWorried && askedQuestion) {
+    return chooseNonRepeatingOption(
+      [
+        `I hear how heavy this feels. ${card.name} can support ${lens}. What seems most supportive right now?`,
+        `This sounds hard, and your honesty matters. With ${card.name}, a gentle anchor is ${lens}. What would help first?`,
+      ],
+      lastShortReply,
+    );
+  }
+  if (soundsWorried) {
+    return chooseNonRepeatingOption(
+      [
+        `That sounds really heavy, and it makes sense. ${card.name} invites ${lens}. What would help you feel steadier?`,
+        `You are carrying a lot right now. ${card.name} leans toward ${lens}. What is one grounding step you can take?`,
+      ],
+      lastShortReply,
+    );
+  }
+  if (askedQuestion && wordCount > 14) {
+    return chooseNonRepeatingOption(
+      [
+        `That is a thoughtful question. Through ${card.name}, ${lens} stands out. Which part already feels true for you?`,
+        `Great question. ${card.name} highlights ${lens}. Which piece of your own answer feels most grounded?`,
+      ],
+      lastShortReply,
+    );
+  }
+  if (askedQuestion) {
+    return chooseNonRepeatingOption(
+      [
+        `Good question. ${card.name} points toward ${lens}. What part matters most right now?`,
+        `That question makes sense. With ${card.name}, focus on ${lens}. What feels most important first?`,
+      ],
+      lastShortReply,
+    );
+  }
+  if (wordCount <= 6) {
+    return chooseNonRepeatingOption(
+      [
+        `I hear you. ${card.name} suggests ${lens}. Could you share one more detail?`,
+        `Thanks for sharing that. ${card.name} leans into ${lens}. Add one detail that feels strongest.`,
+      ],
+      lastShortReply,
+    );
+  }
+  if (wordCount >= 28) {
+    return chooseNonRepeatingOption(
+      [
+        `Thank you for sharing that clearly. ${card.name} reflects ${lens}. If you name the core feeling, what is it?`,
+        `You explained that really clearly. ${card.name} keeps returning to ${lens}. What is the central feeling underneath it?`,
+      ],
+      lastShortReply,
+    );
+  }
+  return chooseNonRepeatingOption(
+    [
+      `That makes sense, and your reflection is clear. ${card.name} supports ${lens}. What feels like the kindest next step?`,
+      `You are naming this with care. Through ${card.name}, ${lens} seems important. What would be a gentle next move?`,
+    ],
+    lastShortReply,
+  );
+}
+
+async function generateAdaptivePostThirdReply(
+  card,
+  userText,
+  userReplies,
+  questionContext,
+) {
+  const safeUserText = limitWords(userText || "", 70);
+  const safeQuestion = limitWords(questionContext || "", 50);
+  const safeRecent = userReplies.slice(-3).map((r) => limitWords(r, 35));
+  const fallback = buildAdaptiveShortFallback(card, userText);
+  const askedQuestion = (userText || "").includes("?");
+  const worried = needsCheeringReaction(userText);
+  const asksSuggestions = isSuggestionRequest(userText);
+  const cardLens = getCardLens(card);
+  const recentAssistantReplies = chatMessages
+    .filter((m) => m.role === "app" && m.text !== "...")
+    .slice(-3)
+    .map((m) => limitWords(m.text, 20));
+
+  const prompt = [
+    "You are a warm, emotionally intelligent reflection guide in a tarot-inspired app.",
+    "Write one concise reply after the user's 4th+ message.",
+    "Adapt response length to user text complexity:",
+    "- If user text is short/simple: 1 short sentence (8-14 words).",
+    "- If user text is detailed/emotional/question-based: 2 short sentences (14-28 words total).",
+    "Be accurate to what user said and directly acknowledge their message.",
+    "If user asks for suggestions or says they don't know, give 2 specific suggestions (not vague prompts).",
+    "You may include one gentle follow-up question, but avoid reusing the same question wording from recent replies.",
+    "Reference the card naturally when useful.",
+    "Do not predict the future and do not use fortune-telling language.",
+    `Card: ${card.name}`,
+    `Card keyword: ${card.keyword}`,
+    `Card themes: ${cardLens}`,
+    safeQuestion ? `Initial focus: ${safeQuestion}` : "",
+    `Recent user reflections: ${safeRecent.join(" | ") || "none"}`,
+    `Recent assistant replies: ${recentAssistantReplies.join(" | ") || "none"}`,
+    `Latest user message: ${safeUserText}`,
+    `Latest message has question: ${askedQuestion ? "yes" : "no"}`,
+    `Latest message sounds worried: ${worried ? "yes" : "no"}`,
+    `Latest message asks suggestions or says "I don't know": ${
+      asksSuggestions ? "yes" : "no"
+    }`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  try {
+    const text = await requestModelReply(prompt, 140, 0.65);
+    const cleaned = text.replace(/\s+/g, " ").trim();
+    if (!cleaned) return fallback;
+    return limitWords(cleaned, 32);
+  } catch (err) {
+    return fallback;
+  }
 }
 
 async function requestModelReply(prompt, maxTokens = 1024, temperature = 0.6) {
@@ -281,6 +513,10 @@ async function generateAiFollowUp(card, replies, questionContext) {
 
 function buildContextualPromptFallback(card, userText, round) {
   const snippet = limitWords(userText || "", 16);
+  if (isSuggestionRequest(userText)) {
+    const suggestions = buildCardBasedSuggestions(card).slice(0, 2);
+    return `${card.name} can help through ${getCardLens(card)}. Try: 1) ${suggestions[0]} 2) ${suggestions[1]}`;
+  }
   if (round === 2) {
     return `You mentioned ${snippet ? `"${snippet}"` : "something important"}. What feels most emotionally true under that for you right now?`;
   }
@@ -291,17 +527,23 @@ async function generateAiNextPrompt(card, userReplies, questionContext, round) {
   const safeReplies = userReplies.map((r) => limitWords(r, 50));
   const safeQuestion = limitWords(questionContext || "", 40);
   const latest = safeReplies[safeReplies.length - 1] || "";
+  const asksSuggestions = isSuggestionRequest(latest);
   const fallback = buildContextualPromptFallback(card, latest, round);
 
   const prompt = [
     "You are a warm, emotionally intelligent reflection guide in a tarot-inspired journaling app.",
-    "Write ONE follow-up question that responds directly to the user's latest message.",
+    asksSuggestions
+      ? "User asked for suggestions or said they don't know. Give two specific, practical suggestions in 1-2 sentences."
+      : "Write ONE follow-up question that responds directly to the user's latest message.",
     "Do not predict the future. Do not use fortune-telling language.",
     "The card is a mirror, not a prediction.",
-    "Keep it under 24 words and end with a question mark.",
+    asksSuggestions
+      ? "Keep it under 34 words and include concrete actions."
+      : "Keep it under 24 words and end with a question mark.",
     `Round: ${round} of 3`,
     `Card: ${card.name}`,
     `Card keyword: ${card.keyword}`,
+    `Card themes: ${getCardLens(card)}`,
     safeQuestion ? `User initial focus: ${safeQuestion}` : "",
     `User latest reflection: ${latest}`,
     `Earlier reflections: ${safeReplies.slice(0, -1).join(" | ") || "none"}`,
@@ -313,6 +555,7 @@ async function generateAiNextPrompt(card, userReplies, questionContext, round) {
     const text = await requestModelReply(prompt, 1024, 0.7);
     const cleaned = text.replace(/\s+/g, " ").trim();
     if (!cleaned) return fallback;
+    if (asksSuggestions) return cleaned;
     return cleaned.endsWith("?") ? cleaned : `${cleaned}?`;
   } catch (err) {
     return fallback;
@@ -509,6 +752,9 @@ function startReflectionSession(card) {
   userReplies = [];
   promptRound = 0;
   summaryUnlocked = false;
+  lastCheeringLine = "";
+  lastShortReply = "";
+  lastPostThirdQuestion = "";
 
   if (els.chatCardTitle) els.chatCardTitle.textContent = card.name;
   if (els.chatCardKeyword) els.chatCardKeyword.textContent = card.keyword;
@@ -559,7 +805,7 @@ async function handleSendMessage() {
     replaceThinkingBubble(thinkingIndex, withCheeringReaction(text, nextPrompt));
     return;
   }
-  if (promptRound >= 3) {
+  if (promptRound === 3) {
     const thinkingIndex = addThinkingBubble();
     const followUp = await generateAiFollowUp(
       selectedCard,
@@ -571,6 +817,40 @@ async function handleSendMessage() {
       summaryUnlocked = true;
       if (els.chatSummaryCta) els.chatSummaryCta.hidden = false;
     }
+    return;
+  }
+  if (promptRound > 3) {
+    const thinkingIndex = addThinkingBubble();
+    const shortReply = await generateAdaptivePostThirdReply(
+      selectedCard,
+      text,
+      userReplies,
+      userQuestion,
+    );
+    const normalizedShortReply = normalizeReply(shortReply);
+    const normalizedLastReply = normalizeReply(lastShortReply);
+    let finalReply = shortReply;
+    if (normalizedShortReply && normalizedShortReply === normalizedLastReply) {
+      finalReply = `${stripTrailingQuestion(shortReply)} What feels most important to name next?`;
+    }
+    const currentQuestion = extractTrailingQuestion(finalReply);
+    if (currentQuestion && currentQuestion === lastPostThirdQuestion) {
+      const alternateQuestions = [
+        "What feels most important to name next?",
+        "What part of this feels most true to you now?",
+        "What would be the gentlest next step for you?",
+        "Which feeling needs the most care right now?",
+      ];
+      const replacement =
+        alternateQuestions.find((q) => q.toLowerCase() !== currentQuestion) ||
+        "What feels most true for you right now?";
+      finalReply = `${stripTrailingQuestion(finalReply)} ${replacement}`.trim();
+    }
+    const updatedQuestion = extractTrailingQuestion(finalReply);
+    lastPostThirdQuestion = updatedQuestion || "";
+    if (!/[.!?]$/.test(finalReply)) finalReply = `${finalReply}.`;
+    replaceThinkingBubble(thinkingIndex, finalReply);
+    lastShortReply = finalReply;
   }
 }
 
