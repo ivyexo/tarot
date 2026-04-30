@@ -876,11 +876,65 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 
+function getBackgroundAudio() {
+  return document.getElementById("bg-music");
+}
+
+function initBackgroundMusic() {
+  const audio = getBackgroundAudio();
+  if (!audio) return;
+  audio.volume = 0.55;
+  audio.muted = true;
+
+  const tryPlay = () => {
+    const playAttempt = audio.play();
+    if (playAttempt && typeof playAttempt.catch === "function") {
+      playAttempt.catch(() => {
+        /* browser autoplay policy may still block sound */
+      });
+    }
+  };
+
+  const unlockSound = () => {
+    audio.muted = false;
+    tryPlay();
+  };
+
+  tryPlay();
+  audio.addEventListener("canplaythrough", tryPlay, { once: true });
+  window.addEventListener("load", tryPlay, { once: true });
+  window.addEventListener("pointerdown", unlockSound, { once: true, passive: true });
+  window.addEventListener("touchstart", unlockSound, { once: true, passive: true });
+  window.addEventListener("keydown", unlockSound, { once: true });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) tryPlay();
+  });
+}
+
+function pauseBackgroundMusic() {
+  const audio = getBackgroundAudio();
+  if (audio) audio.pause();
+}
+
+function resumeBackgroundMusic() {
+  const audio = getBackgroundAudio();
+  if (!audio) return;
+  const playAttempt = audio.play();
+  if (playAttempt && typeof playAttempt.catch === "function") {
+    playAttempt.catch(() => {
+      /* playback can fail without user gesture */
+    });
+  }
+}
+
 function bindUi() {
   resetDrawStage();
+  initBackgroundMusic();
   document
     .getElementById("btn-begin")
-    ?.addEventListener("click", () => showScreen("question"));
+    ?.addEventListener("click", () => {
+      showScreen("question");
+    });
 
   document
     .getElementById("btn-question-continue")
